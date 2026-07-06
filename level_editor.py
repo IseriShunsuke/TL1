@@ -4,6 +4,7 @@ import bpy_extras
 import gpu
 import gpu_extras.batch
 import copy
+import mathutils
 
 bl_info = {
     "name" : "レベルエディター",
@@ -17,6 +18,36 @@ bl_info = {
     "tracker_url" : "",
     "category" : "Object",
 }
+
+class OBJECT_PT_collider(bpy.types.Panel):
+    """オブジェクトのファイルネームパネル"""
+    bl_idname = "OBJECT_PT_collider"
+    bl_label = "Collider"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "object"
+
+    def draw(self,context):
+        if "collider" in context.object:
+            self.layout.prop(context.object,'["collider"]', text="Type")
+            self.layout.prop(context.object,'["collider_center"]', text="Center")
+            self.layout.prop(context.object,'["collider_size"]', text="Size")
+        else:
+            self.layout.operator(MYADDON_OT_add_collider.bl_idname)
+
+class MYADDON_OT_add_collider(bpy.types.Operator):
+    bl_idname = "myaddon.myaddon_ot_add_collider"
+    bl_label = "コライダー追加"
+    bl_description = "['collider'カスタムプロパティを追加します]" 
+    bl_options = {'REGISTER','UNDO'}
+
+    def execute(self,context):
+
+        context.object["collider"] = "BOX"
+        context.object["collider_center"] = mathutils.Vector((0,0,0))
+        context.object["collider_size"] = mathutils.Vector((2,2,2))
+
+        return {'FINISHED'}
 
 class DrawCollider:
     handle = None
@@ -38,14 +69,30 @@ class DrawCollider:
         Size = [2,2,2]
 
         for object in bpy.context.scene.objects:
+
+            if not "collider" in object:
+                continue
+            
+            center = mathutils.Vector((0,0,0))
+            size = mathutils.Vector((2,2,2))
+
+            center[0]=object["collider_center"][0]
+            center[1]=object["collider_center"][1]
+            center[2]=object["collider_center"][2]
+            size[1]=object["collider_size"][1]
+            size[2]=object["collider_size"][2]
+            size[0]=object["collider_size"][0]
+
             start = len(vertices["pos"])
 
             for offset in offsets:
-                pos = copy.copy(object.location)
+                pos = copy.copy(center)
 
                 pos[0]+=offset[0]*Size[0]
                 pos[1]+=offset[1]*Size[1]
                 pos[2]+=offset[2]*Size[2]
+
+                pos = object.matrix_world @ pos
 
                 vertices['pos'].append(pos)
 
@@ -131,6 +178,14 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 
         if "file_name" in object:
             self.write_and_print(file, indent + "N %s" % object["file_name"])
+        if "collider" in object:
+            self.write_and_print(file, indent + "C %s" % object["collider"])
+            temp_str = indent + "CC %f %f %f"
+            temp_str %= (object["collider_center"][0],object["collider_center"][1],object["collider_center"][2])
+            self.write_and_print(file, temp_str)
+            temp_str = indent + "CS %f %f %f"
+            temp_str %= (object["collider_size"][0],object["collider_size"][1],object["collider_size"][2])
+            self.write_and_print(file, temp_str)
         self.write_and_print(file, indent + "END")
         self.write_and_print(file, '')
 
@@ -224,7 +279,9 @@ classes = (
     MYADDON_OT_create_ico_sphere,
     TOPBAR_MT_my_menu,
     OBJECT_PT_file_name,
-    MYADDON_OT_add_file_name
+    MYADDON_OT_add_file_name,
+    MYADDON_OT_add_collider,
+    OBJECT_PT_collider,
 )
         
 
